@@ -1,0 +1,13 @@
+true_class,predicted_as,flows
+NMAP_UDP_SCAN,DDOS_Slowloris,13
+Thing_Speak,ARP_poisioning,13
+ARP_poisioning,Thing_Speak,7
+DDOS_Slowloris,NMAP_UDP_SCAN,7
+NMAP_UDP_SCAN,ARP_poisioning,4
+Thing_Speak,NMAP_UDP_SCAN,2
+DDOS_Slowloris,ARP_poisioning,1
+MQTT_Publish,Thing_Speak,1
+Metasploit_Brute_Force_SSH,ARP_poisioning,1
+NMAP_FIN_SCAN,ARP_poisioning,1
+NMAP_UDP_SCAN,Thing_Speak,1
+NMAP_XMAS_TREE_SCAN,NMAP_UDP_SCAN,1
