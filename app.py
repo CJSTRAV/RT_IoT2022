@@ -261,7 +261,7 @@ def predict_cached(df):
 bundle = get_bundle()
 
 # ---------------------------------------------------------------- sidebar
-PAGES = ["Overview", "Dataset & Pipeline", "Model Results",
+PAGES = ["Overview", "Background of the Study", "Dataset & Pipeline", "Model Results",
          "Classify a Flow", "Live Traffic Simulation", "Batch Prediction"]
 with st.sidebar:
     html('<div class="wordmark">Attack Classifier</div>'
@@ -328,6 +328,154 @@ def page_overview():
     note("<b>Key takeaway:</b> Random Forest ranked first of six classifiers &mdash; only slightly ahead of a single "
          "decision tree. Most of its 52 errors come from two pairs of similar classes.", "ink")
 
+
+
+# ================================================================ BACKGROUND
+def numbered(items):
+    rows = "".join(
+        f'<div class="well" style="align-items:flex-start;flex-wrap:nowrap">'
+        f'<span class="badge b-normal" style="min-width:26px;justify-content:center">{i}</span>'
+        f'<span>{t}</span></div>' for i, t in enumerate(items, 1))
+    html(f'<div class="rowlist">{rows}</div>')
+
+
+def page_background():
+    page_head("Background of the Study", "Why this study, what it set out to do, and where its limits are")
+
+    html(
+        '<div class="grid hero-row">'
+        '<div class="c ink">'
+        '<div class="lbl" style="font-size:16px;margin-bottom:14px">Background</div>'
+        '<div class="hero-title" style="font-size:32px">IoT devices are everywhere &mdash; and many are easy targets.</div>'
+        '<p class="hero-sub" style="font-size:16.5px;line-height:1.55">'
+        'The Internet of Things (IoT) refers to everyday devices, such as sensors, bulbs and smart appliances, '
+        'that connect to the internet to collect and exchange data. Many are deployed with weak default security '
+        'and run unattended, which makes them easy targets for attackers who want to disrupt a network or use the '
+        'device to reach other systems.</p></div>'
+        '<div class="c lime">'
+        '<div class="lbl" style="font-size:16px">The gap</div>'
+        '<div style="font-size:17px;line-height:1.5">Traditional intrusion detection compares traffic against a list of '
+        'known attack <b>signatures</b>, so it can miss variants that do not exactly match a stored rule.</div>'
+        '<div style="font-size:17px;line-height:1.5">A <b>machine learning classifier</b> learns patterns from labelled '
+        'traffic &mdash; such as how the timing of a port scan differs from a flood &mdash; and applies them to traffic '
+        'it has never seen.</div></div>'
+        '</div>'
+    )
+    note("<b>This study</b> builds a Random Forest classifier on the RT-IoT2022 dataset. Using flow features such as "
+         "packet counts, timing, header sizes and flag counts, the model decides whether each network flow is normal "
+         "traffic or a specific type of attack.", "info")
+
+    html('<div style="height:20px"></div>')
+    a, b = st.columns([1, 1.25], gap="medium")
+    with a:
+        with card("gen_obj"):
+            card_title("General objective")
+            html('<div style="font-family:\'Bricolage Grotesque\',Figtree,sans-serif;font-size:22px;font-weight:700;'
+                 'line-height:1.25;letter-spacing:-0.01em">To build and evaluate a Random Forest model that classifies '
+                 'IoT network flows as normal traffic or one of several attack types.</div>')
+    with b:
+        with card("spec_obj"):
+            card_title("Specific objectives")
+            numbered([
+                "To obtain, clean and transform the RT-IoT2022 dataset.",
+                "To select and engineer features, and identify which ones matter most.",
+                "To split the data into training and testing sets and train a Random Forest classifier using "
+                "Python and scikit-learn.",
+                "To evaluate the model using accuracy, precision, recall, F1-score and a confusion matrix.",
+                "To analyse how well the model separates normal traffic from attack traffic and identifies each "
+                "attack type.",
+            ])
+
+    html('<div style="height:20px"></div>')
+    a, b = st.columns(2, gap="medium")
+    with a:
+        with card("scope"):
+            card_title("Scope")
+            rows = [
+                ("Dataset", "RT-IoT2022 and its available flow features only"),
+                ("Task", "Multi-class classification of each flow into 12 classes (3 normal, 9 attack)"),
+                ("Model", "Random Forest, compared with five other classifiers on the same features"),
+                ("Evaluation", "Accuracy, precision, recall, F1-score (macro F1 as the main measure), confusion matrix"),
+                ("Focus", "Classification performance, not a complete intrusion prevention system"),
+            ]
+            html('<div class="rowlist">' + "".join(
+                f'<div class="well" style="flex-wrap:nowrap;align-items:flex-start"><b style="min-width:92px">{k}</b>'
+                f'<span class="muted">{v}</span></div>' for k, v in rows) + "</div>")
+    with b:
+        with card("limits"):
+            card_title("Limitations")
+            items = [
+                "The model does <b>not monitor a live network</b> or automatically block attacks.",
+                "Results come from <b>one data capture</b> and <b>one random train-test split</b> (seed 42).",
+                "Two classes have very few test flows &mdash; <b>7</b> Metasploit_Brute_Force_SSH and <b>6</b> "
+                "NMAP_FIN_SCAN &mdash; so their scores are less certain.",
+                "The attacks were generated with tools in a lab setting, so real-world traffic and new attack "
+                "variants may be harder to classify.",
+            ]
+            html('<div class="rowlist">' + "".join(
+                f'<div class="well" style="flex-wrap:nowrap;align-items:flex-start">'
+                f'<span class="badge b-attack">Limit</span><span>{t}</span></div>' for t in items) + "</div>")
+
+    html('<div style="height:20px"></div>')
+    with card("data_desc"):
+        card_title("Dataset description", "RT-IoT2022 &middot; Sharmila &amp; Nagapadma &middot; UCI Machine Learning Repository "
+                   "(doi:10.24432/C5P338)")
+        tiles([
+            ("Problem type", "Classification"),
+            ("Target", "Attack_type"),
+            ("Size", "123,117 flows"),
+            ("Features", "83 + 1 label"),
+            ("Classes", "12 (3 normal, 9 attack)"),
+            ("Application", "IoT intrusion detection"),
+        ])
+        st.markdown(
+            "RT-IoT2022 contains **real IoT network traffic**. Each record is one **network flow** — a single "
+            "conversation between two devices — described by flow features and labelled as normal traffic or a "
+            "specific attack type."
+        )
+        groups = pd.DataFrame([
+            ("Connection", "id.orig_p, id.resp_p, proto, service", "Source/destination port, protocol (TCP/UDP/ICMP), application service"),
+            ("Volume", "fwd_pkts_tot, bwd_pkts_tot, fwd_data_pkts_tot, ...", "How many packets and data packets went each way"),
+            ("Rate & timing", "flow_duration, flow_pkts_per_sec, fwd_iat.*, flow_iat.*", "How long the flow lasted and the gaps between packets"),
+            ("Headers & payload", "fwd_header_size_*, fwd_pkts_payload.*, bwd_pkts_payload.*", "Header sizes and payload bytes (min, max, total, mean, std)"),
+            ("TCP flags", "flow_SYN/FIN/RST_flag_count, fwd_PSH/URG_flag_count, ...", "How often each TCP control flag appeared"),
+            ("Activity & windows", "active.*, idle.*, fwd_init_window_size, ...", "Active/idle periods, bulk transfers and TCP window sizes"),
+            ("Label", "Attack_type", "One of the 12 traffic classes"),
+        ], columns=["Feature group", "Example columns", "What it describes"])
+        st.dataframe(groups, hide_index=True, width="stretch")
+        c1, c2 = st.columns(2, gap="medium")
+        with c1:
+            html('<div class="card-title" style="font-size:17px">Normal traffic (3)</div>')
+            html('<div class="rowlist">' + "".join(
+                f'<div class="well">{badge("Normal")}<b>{nice(k)}</b><span class="muted small">{v[1]}</span></div>'
+                for k, v in core.CLASS_INFO.items() if v[0] == "Normal") + "</div>")
+        with c2:
+            html('<div class="card-title" style="font-size:17px">Attack traffic (9)</div>')
+            html('<div class="rowlist">' + "".join(
+                f'<div class="well" style="padding:8px 14px">{badge("Attack")}<b>{nice(k)}</b></div>'
+                for k, v in core.CLASS_INFO.items() if v[0] == "Attack") + "</div>")
+
+    html('<div style="height:20px"></div>')
+    with card("proposed"):
+        card_title("Proposed machine learning model: Random Forest")
+        a, b = st.columns([1.1, 1], gap="medium")
+        with a:
+            st.markdown(
+                "Random Forest (Breiman, 2001) is an **ensemble** algorithm. It builds many decision trees, each "
+                "trained on a different random sample of the data and features, and chooses the final class by "
+                "combining the votes of all the trees.\n\n"
+                "**Setup in this study:** 200 trees, balanced class weights (the data is heavily imbalanced), "
+                "random seed 42, built with scikit-learn."
+            )
+        with b:
+            html('<div class="card-title" style="font-size:17px">Why Random Forest</div>')
+            numbered([
+                "Works well with many numerical features.",
+                "Does not need feature scaling &mdash; trees only compare values against thresholds.",
+                "Detects attacks that depend on a <b>combination</b> of features (duration, protocol, traffic volume) "
+                "rather than a single one.",
+                "Gives feature importances, so the result can be explained.",
+            ])
 
 # ================================================================ DATASET
 def page_dataset():
@@ -1070,9 +1218,10 @@ def page_batch():
 # ---------------------------------------------------------------- router
 {
     PAGES[0]: page_overview,
-    PAGES[1]: page_dataset,
-    PAGES[2]: page_results,
-    PAGES[3]: page_classify,
-    PAGES[4]: page_live,
-    PAGES[5]: page_batch,
+    PAGES[1]: page_background,
+    PAGES[2]: page_dataset,
+    PAGES[3]: page_results,
+    PAGES[4]: page_classify,
+    PAGES[5]: page_live,
+    PAGES[6]: page_batch,
 }[page]()

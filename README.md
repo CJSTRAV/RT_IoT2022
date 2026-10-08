@@ -25,8 +25,9 @@ Figtree) load from Google Fonts; offline, the app falls back to your system font
 | Page | What it shows |
 |---|---|
 | Overview | Problem, approach, headline results, the 12 traffic classes |
-| Dataset & Pipeline | Conceptual framework, cleaning steps, class imbalance, 92 → 62 features |
-| Model Results | Model comparison, per-class F1, confusion matrix, feature importance, experiments E1–E6 |
+| Background of the Study | Background, general and specific objectives, scope and limitations, dataset description, why Random Forest |
+| Dataset & Pipeline | Conceptual framework, before-and-after preprocessing, normal vs attack split, class imbalance, 92 → 62 features |
+| Model Results | Model comparison, per-class F1, confusion matrix, ROC curves and AUC, feature importance, experiments E1–E6 |
 | Classify a Flow | Pick a held-out test flow, see the prediction and tree votes, edit features (what-if) |
 | Live Traffic Simulation | Replays test flows as live traffic with counters, feed and alert log |
 | Batch Prediction | Upload a CSV of flows, get predictions, download results |
@@ -34,6 +35,7 @@ Figtree) load from Google Fonts; offline, the app falls back to your system font
 ## Suggested demo script (≈ 5 minutes)
 
 1. **Overview** — read the four headline numbers; point out macro F1 is the main measure.
+1. **Background of the Study** — background, objectives, scope and limitations.
 2. **Dataset & Pipeline** — show the class-imbalance chart (76% is one class) to explain why accuracy alone misleads.
 3. **Model Results → Confusion matrix** — two pairs of similar classes cause 40 of the 52 errors.
 4. **Classify a Flow** — click *Random flow* a few times; then set *Show → Only misclassified flows* to be honest about the errors.
