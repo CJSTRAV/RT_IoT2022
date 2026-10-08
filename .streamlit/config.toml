@@ -1,9 +1,10 @@
+# Ulticon "soft cards" palette. Fonts and card shapes are applied by the CSS in app.py.
 [theme]
 base = "light"
-primaryColor = "#1F5FAD"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F2F5FA"
-textColor = "#1B2430"
+primaryColor = "#4b45c6"
+backgroundColor = "#eeeef4"
+secondaryBackgroundColor = "#f4f4f9"
+textColor = "#1b1a2e"
 
 [server]
 headless = true
