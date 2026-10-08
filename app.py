@@ -225,8 +225,11 @@ def style_fig(fig, height=420):
     return fig
 
 
-def chart(fig, height=420, key=None, target=st):
-    target.plotly_chart(style_fig(fig, height), width="stretch", theme=None, key=key,
+def chart(fig, height=420, key=None, target=st, legend=None):
+    fig = style_fig(fig, height)
+    if legend:
+        fig.update_layout(legend=legend)
+    target.plotly_chart(fig, width="stretch", theme=None, key=key,
                         config={"displayModeBar": False})
 
 
@@ -341,7 +344,7 @@ def page_dataset():
         ("&minus;5,195", "Exact duplicates removed", MUTED),
         ("&minus;13", "Contradictory records removed", MUTED),
         ("117,909", "Clean flows", VIOLET),
-        ("94,327 / 23,582", "Train / test, 80/20 stratified", INK),
+        ("80 / 20", "Train / test split: 94,327 / 23,582 flows, stratified", INK),
     ])
     with st.expander("Cleaning steps in detail"):
         st.markdown(
@@ -353,6 +356,8 @@ def page_dataset():
             "5. Dropped the row number and **source port** (`id.orig_p`): it is random, so the model would "
             "memorise port numbers instead of learning behaviour."
         )
+    html('<div style="height:20px"></div>')
+    before_after_section()
     html('<div style="height:20px"></div>')
 
     with card("dist"):
@@ -410,6 +415,187 @@ def page_dataset():
             html(f'<div class="rowlist">{rows}</div>')
 
 
+
+# ================================================================ BEFORE & AFTER
+def split_donut(normal, attack, title):
+    fig = go.Figure(go.Pie(labels=["Attack", "Normal"], values=[attack, normal], hole=0.62, sort=False,
+                           marker=dict(colors=[ATTACK, NORMAL], line=dict(color=SURFACE, width=3)),
+                           texttemplate="%{label}<br>%{percent:.2%}", textposition="outside"))
+    fig.update_layout(showlegend=False, margin=dict(l=30, r=30, t=30, b=20),
+                      annotations=[dict(text=f"<b>{normal + attack:,}</b><br>flows", showarrow=False,
+                                        font=dict(family=FONT_DISPLAY, size=18, color=INK))])
+    card_title(title)
+    chart(fig, 300, key=f"donut_{title}")
+
+
+def before_after_section():
+    summ = json.loads((core.DATA / "data_summary.json").read_text())
+    dist = get_csv("class_distribution.csv")
+    dist["Type"] = dist["Attack_type"].map(lambda c: core.CLASS_INFO[c][0])
+    dist["removed"] = dist["raw"] - dist["cleaned"]
+
+    with card("ba_table"):
+        card_title("Before and after preprocessing", "What the raw file looked like, and what the model was trained on")
+        table = pd.DataFrame([
+            ("Rows (flows)", f"{summ['raw_rows']:,}", f"{summ['clean_rows']:,}", "5,208 rows removed (4.2%)"),
+            ("Exact duplicate rows", f"{summ['duplicates_removed']:,}", "0", "Kept one copy of each"),
+            ("Contradictory rows (same features, different label)", f"{summ['contradictions_removed']}", "0",
+             "Removed entirely"),
+            ("Constant columns", "1 (bwd_URG_flag_count)", "0", "Carries no information"),
+            ("Source port (id.orig_p)", "Included", "Dropped", "Random per connection; would be memorised"),
+            ("Value '-' in service", "'-'", "'none'", "Treated as a real category"),
+            ("Feature columns", f"{summ['raw_cols']}", f"{summ['final_features']}",
+             "81 cleaned → 92 one-hot → 53 selected + 9 engineered"),
+            ("Categorical columns", "proto, service (text)", "13 binary columns", "One-hot encoded"),
+            ("Missing values", "0", "0", "None to fix"),
+        ], columns=["Item", "Before", "After", "Note"])
+        st.dataframe(table, hide_index=True, width="stretch")
+
+    html('<div style="height:20px"></div>')
+    with card("ba_classes"):
+        top = st.columns([3, 1])
+        with top[0]:
+            card_title("Flows per class, before and after cleaning",
+                       "Most removed rows were repeated SYN-flood flows")
+        with top[1]:
+            log = st.toggle("Logarithmic scale", value=True, key="ba_log")
+        d = dist.sort_values("raw", ascending=False)
+        fig = go.Figure([
+            go.Bar(name="Before (raw)", x=d["Attack_type"].map(nice), y=d["raw"], marker_color=NEUTRAL),
+            go.Bar(name="After (cleaned)", x=d["Attack_type"].map(nice), y=d["cleaned"],
+                   marker_color=[type_color(c) for c in d["Attack_type"]],
+                   text=[f"−{r:,}" if r else "" for r in d["removed"]], textposition="outside",
+                   textfont=dict(size=11, color=MUTED)),
+        ])
+        fig.update_layout(barmode="group")
+        fig.update_xaxes(tickangle=-35)
+        fig.update_yaxes(type="log" if log else "linear", title="Flows")
+        chart(fig, 430)
+        removed = dist[dist["removed"] > 0].sort_values("removed", ascending=False)
+        st.dataframe(removed[["Attack_type", "Type", "raw", "cleaned", "removed"]]
+                     .assign(pct=lambda x: x["removed"] / x["raw"])
+                     .rename(columns={"Attack_type": "Class", "raw": "Before", "cleaned": "After",
+                                      "removed": "Removed", "pct": "% removed"})
+                     .style.format({"Before": "{:,}", "After": "{:,}", "Removed": "{:,}", "% removed": "{:.1%}"})
+                     .map(type_style, subset=["Type"]),
+                     hide_index=True, width="stretch")
+
+    html('<div style="height:20px"></div>')
+    a, b, c = st.columns(3, gap="medium")
+    raw_n = int(dist.loc[dist["Type"] == "Normal", "raw"].sum()); raw_a = int(dist.loc[dist["Type"] == "Attack", "raw"].sum())
+    cl_n = int(dist.loc[dist["Type"] == "Normal", "cleaned"].sum()); cl_a = int(dist.loc[dist["Type"] == "Attack", "cleaned"].sum())
+    with a:
+        with card("donut_before"):
+            split_donut(raw_n, raw_a, "Before cleaning")
+    with b:
+        with card("donut_after"):
+            split_donut(cl_n, cl_a, "After cleaning")
+    with c:
+        with card("donut_test"):
+            split_donut(2403, 21179, "Test set")
+    note("Normal vs attack stays at roughly <b>10% normal / 90% attack</b> through every step &mdash; cleaning and the "
+         "stratified split did not change the balance.")
+
+    html('<div style="height:20px"></div>')
+    with card("ba_flow"):
+        card_title("One flow, before and after transformation",
+                   "The same record as the raw file stores it, and as the Random Forest receives it")
+        demo = get_csv("demo_flows.csv")
+        cls = st.selectbox("Example class", sorted(demo["Attack_type"].unique()), key="ba_cls",
+                           index=sorted(demo["Attack_type"].unique()).index("MQTT_Publish"), format_func=nice)
+        row = demo[demo["Attack_type"] == cls].head(1)
+        flow = row.drop(columns=["flow_id", "Attack_type"])
+        X = core.prepare(flow, bundle)
+        l, r = st.columns(2, gap="medium")
+        with l:
+            html('<div class="card-title" style="font-size:17px">Before: raw record</div>')
+            raw_cols = ["id.orig_p", "id.resp_p", "proto", "service", "flow_duration", "fwd_pkts_tot", "bwd_pkts_tot",
+                        "fwd_pkts_payload.tot", "bwd_pkts_payload.tot", "flow_SYN_flag_count", "flow_FIN_flag_count",
+                        "flow_RST_flag_count", "fwd_header_size_tot", "bwd_header_size_tot"]
+            st.dataframe(flow[raw_cols].T.rename(columns={flow.index[0]: "value"}).astype(str),
+                         width="stretch", height=420)
+            st.caption(f"83 columns in total. Text values in proto and service; source port {int(flow['id.orig_p'].iloc[0])} "
+                       "is still present.")
+        with r:
+            html('<div class="card-title" style="font-size:17px">After: model input</div>')
+            onehot = [c for c in X.columns if c.startswith(("proto_", "service_"))]
+            show = X.iloc[0][onehot + core.ENGINEERED + ["id.resp_p", "flow_duration", "fwd_pkts_tot"]]
+            kind = ["One-hot" if c in onehot else "Engineered" if c in core.ENGINEERED else "Selected original"
+                    for c in show.index]
+            out = pd.DataFrame({"feature": show.index, "value": show.values.round(4), "kind": kind})
+            st.dataframe(out.style.map(lambda k: f"color:{VIOLET if k == 'Engineered' else INK if k == 'One-hot' else MUTED};"
+                                                 "font-weight:600", subset=["kind"]),
+                         hide_index=True, width="stretch", height=420)
+            st.caption(f"{X.shape[1]} numeric columns, no text, no source port. A sample of them is shown.")
+
+
+# ================================================================ ROC
+ROC_COLORS = [VIOLET, DANGER, INK, "#8a85e0", "#e07a8c", "#7d7a99", "#2f3311", "#b4c94a", "#5a5870",
+              "#c7a6e8", "#e8a33d", "#3a8f7b"]
+
+
+def roc_section():
+    roc = get_csv("roc_curves.csv")
+    auc = json.loads((core.DATA / "roc_auc.json").read_text())
+    zoom = st.toggle("Zoom into the top-left corner (false-positive rate 0 to 5%)", value=False, key="roc_zoom")
+    xr, yr = ([0, 0.05], [0.8, 1.005]) if zoom else ([0, 1], [0, 1.02])
+
+    a, b = st.columns([1, 1], gap="medium")
+    with a:
+        with card("roc_bin"):
+            card_title("Attack vs normal", "Score = share of trees voting for any attack class")
+            d = roc[roc["curve"] == "ATTACK_VS_NORMAL"]
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Random guess",
+                                     line=dict(color=BORDER, dash="dash")))
+            fig.add_trace(go.Scatter(x=d["fpr"], y=d["tpr"], mode="lines", name=f"Random Forest (AUC {auc['ATTACK_VS_NORMAL']:.5f})",
+                                     line=dict(color=VIOLET, width=3, shape="hv"), fill="tozeroy",
+                                     fillcolor="rgba(75,69,198,0.10)"))
+            fig.add_trace(go.Scatter(x=[15 / 2403], y=[21171 / 21179], mode="markers", name="Model's decision point",
+                                     marker=dict(color=LIME, size=13, line=dict(color=INK, width=2))))
+            fig.update_xaxes(title="False-positive rate (normal flagged as attack)", range=xr)
+            fig.update_yaxes(title="True-positive rate (attacks caught)", range=yr)
+            chart(fig, 440, key="roc_bin_chart",
+                  legend=dict(orientation="v", yanchor="bottom", y=0.04, xanchor="right", x=0.98,
+                              bgcolor="rgba(255,255,255,0.9)"))
+    with b:
+        with card("roc_cls"):
+            card_title("One class vs the rest", "Each curve treats one class as positive and all others as negative")
+            classes = sorted([c for c in roc["curve"].unique() if c != "ATTACK_VS_NORMAL"])
+            default = ["Metasploit_Brute_Force_SSH", "NMAP_FIN_SCAN", "DDOS_Slowloris", "NMAP_UDP_SCAN", "DOS_SYN_Hping"]
+            pick = st.multiselect("Classes", classes, default=default, format_func=nice, key="roc_pick")
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", showlegend=False,
+                                     line=dict(color=BORDER, dash="dash")))
+            for i, c in enumerate(pick):
+                d = roc[roc["curve"] == c]
+                fig.add_trace(go.Scatter(x=d["fpr"], y=d["tpr"], mode="lines", name=f"{nice(c)} ({auc[c]:.4f})",
+                                         line=dict(color=ROC_COLORS[classes.index(c) % len(ROC_COLORS)], width=2.5,
+                                                   shape="hv")))
+            fig.update_xaxes(title="False-positive rate", range=xr)
+            fig.update_yaxes(title="True-positive rate", range=yr)
+            chart(fig, 440, key="roc_cls_chart",
+                  legend=dict(orientation="v", yanchor="bottom", y=0.04, xanchor="right", x=0.98,
+                              bgcolor="rgba(255,255,255,0.9)", font=dict(size=12)))
+
+    html('<div style="height:20px"></div>')
+    kpi_row([
+        (f"{auc['ATTACK_VS_NORMAL']:.5f}", "AUC, attack vs normal", VIOLET),
+        (f"{auc['weighted_ovr']:.4f}", "Weighted one-vs-rest AUC (by class size)", INK),
+        (f"{auc['macro_ovr']:.4f}", "Macro one-vs-rest AUC (every class equal)", INK),
+        ("0.917", "Lowest class AUC: NMAP FIN SCAN (6 test flows)", DANGER),
+    ])
+    with card("roc_table"):
+        card_title("AUC per class")
+        t = pd.DataFrame([(c, core.CLASS_INFO[c][0], auc[c]) for c in sorted(core.CLASS_INFO)],
+                         columns=["Class", "Type", "AUC"]).sort_values("AUC")
+        st.dataframe(t.style.format({"AUC": "{:.6f}"}).map(type_style, subset=["Type"]),
+                     hide_index=True, width="stretch")
+        note("An AUC of 1.0 means the model ranks every flow of that class above every other flow. Ten classes are at "
+             "0.999 or higher. The two rare classes score lower (0.928 and 0.917) because each has one missed flow out "
+             "of 6&ndash;7, and the forest gave that flow almost no votes for its true class &mdash; so no threshold "
+             "can catch it without many false alarms. With so few test flows, these two values are uncertain.")
+
 # ================================================================ RESULTS
 def page_results():
     page_head("Model Results", "Final Random Forest on the held-out 20% test set")
@@ -422,7 +608,7 @@ def page_results():
         (f"{res['n_errors']}", f"Errors out of {res['n_test']:,} test flows", DANGER),
     ])
 
-    tabs = st.tabs(["Model comparison", "Per-class results", "Confusion matrix",
+    tabs = st.tabs(["Model comparison", "Per-class results", "Confusion matrix", "ROC curves",
                     "Feature importance", "Experiments"])
 
     with tabs[0]:
@@ -511,6 +697,9 @@ def page_results():
                  '<b>15 / 2,403</b> normal flows falsely flagged.</div></div></div>')
 
     with tabs[3]:
+        roc_section()
+
+    with tabs[4]:
         with card("importance"):
             fi = get_csv("feature_importance.csv", index_col=0).reset_index(names="Feature")
             top = st.columns([2, 1.2])
@@ -531,7 +720,7 @@ def page_results():
                  "model combines many weak clues. Three of the top five are <b>engineered</b> (header_payload_ratio, "
                  "syn_per_pkt, fin_per_pkt), which fits SYN floods and FIN scans.")
 
-    with tabs[4]:
+    with tabs[5]:
         with card("configs"):
             card_title("Feature-set experiments (E1&ndash;E6)", "Same Random Forest, different inputs")
             cfg = get_csv("config_results.csv")

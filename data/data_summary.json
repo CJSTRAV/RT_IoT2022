@@ -1,0 +1,13 @@
+{
+ "raw_rows": 123117,
+ "raw_cols": 83,
+ "after_constant": 123117,
+ "duplicates_removed": 5195,
+ "contradictions_removed": 13,
+ "clean_rows": 117909,
+ "clean_feature_cols": 81,
+ "encoded_cols": 92,
+ "final_features": 62,
+ "train": 94327,
+ "test": 23582
+}
